@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: "https://github.com/bradenripple5/warehouse-tracker",
+  // Relative asset paths work both at the local server root and under the
+  // /warehouse-tracker/ path used by this GitHub Pages project site.
+  base: './',
   server: {
     host: '0.0.0.0',
     port: 5174,
