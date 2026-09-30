@@ -19,15 +19,28 @@ integration yet. `public/inventory.json` is explicitly labeled demo data.
 
 ## Layout requirements
 
-- Thirteen sections run horizontally: A–H and J–N. **Skip I.**
+- P, Q, and R use the same section width as B–N in detailed and fitted views.
+  Their A–E sub-bays share the standard numbered bay footprint; do not widen
+  the sections to give each suffix its own full-width bay.
+
+- In the current mode without orders, the fitted floor has exactly three rows:
+  dock doors, access aisle, and storage filling the remaining height. Restore
+  the 44px order row only together with the dock-orders element; an unused row
+  places storage in the aisle track and collapses the bay columns.
+
+- Sixteen sections run horizontally: A–H, J–N, and P–R. **Skip I and O.** P, Q, and R extend right of N and span the full warehouse height.
 - Each section has two columns, numbered downward. Use uppercase section letters
   and three-digit numbers everywhere, including inventory keys.
-- Left column: `A101`, `A001`–`A021`, an open crossing at positions 022–023,
-  then `A024`–`A030`.
+- Section A has an outer A-side lane with `A101`–`A112`; its inner left
+  column has `A001`–`A021`, an open crossing at positions 022–023, then
+  `A024`–`A030`.
 - Right column: `A141`, `A041`–`A061`, an open crossing at positions 062–063,
   then `A064`–`A070`.
-- Repeat the same pattern for every section: **58 bays per section, 754 total**.
-  Each column occupies 31 grid positions, including its two-position crossing.
+- The standard layout has **58 main bays per section**. P, Q, and R extend
+  right of N at the full warehouse height. Each P–R main bay has five distinct
+  data locations ending A–E (for example, `P028A`–`P028E`); display only the
+  parent label `P028`. Section A has 11 additional A-side bays, A102–A112, for
+  1,635 total map locations. Each column occupies 31 grid positions.
 - A vertical forklift aisle separates each column pair. Crossings line up
   horizontally across all sections.
 - Dock positions run across the top, numbered 1–48. Leave 22–27 blank.
@@ -77,7 +90,7 @@ The response has these fields:
 }
 ```
 
-This example omits most bays for brevity; actual responses must include all 754
+This example omits most bays for brevity; actual responses must include all 1,635
 storage bay keys. Quantities are nonnegative safe integers.
 
 - `bays`: current system inventory; an empty array means empty.
@@ -94,24 +107,40 @@ storage bay keys. Quantities are nonnegative safe integers.
 
 ## Interaction requirements
 
-- First visits default to fit view. Subsequent visits restore saved preferences.
+Current limited mode: startup forces fit view and count view on. The toolbar
+contains only fit, a single show/hide counts toggle, and upload controls, plus
+an inventory model search field. Model search adds a blue dot beside matching
+bay labels, excluding P, Q, and R from the dot indicators. Colors and brightness
+stay unchanged. Dots remain visible in fitted/mobile views and disappear when
+search is cleared. Search matches bay inventory directly; the match summary
+still includes all sections.
+Order/search/tracing startup is intentionally commented out in `src/main.js`;
+`src/orders.js` remains intact. Restore its commented import and `setupOrders`
+call to re-enable the order UI and tracing. Activity heatmap controls and
+processing are temporarily suspended.
+
+- First visits default to fit view. In current limited mode startup always
+  forces fit view and count display on; selected bay and model search persist.
   Fit view hides inventory inside bays; hover, focus, or tap exposes full details.
   Detailed view allows horizontal scrolling and reduces crowded inventory text.
 - Hover/focus an order to draw curved arrows **from source bays toward the order**.
   Pointer leave/blur ends the temporary preview. The user replaced the earlier
   press-and-hold interaction with hover. Lines describe provenance, not driving
   paths through warehouse aisles.
-- Model search is case-insensitive and supports partial matches. Show matching
-  orders and bay/model allocation quantities on the arrows. Results have five
-  orders per page; pagination does not limit map connections. Reset to page one
-  on a new query and clamp the page if live results shrink.
+- Typing in model search shows matching model suggestions in alphabetical
+  order, including known LG appliance examples; selecting a model filters the
+  case-insensitive partial matches. Show matching orders and bay/model
+  allocation quantities on the arrows. Results have five orders per page;
+  pagination does not limit map connections. Reset to page one on a new query
+  and clamp the page if live results shrink.
 - `Trace bay orders`: enable, then click a bay to keep its order connections
   visible. Hovering an order temporarily previews it; leaving restores the trace.
 - `Trace off counts`: highlight discrepant bays and connect affected bay/model
   pairs to related orders. It and individual bay tracing are mutually exclusive.
   Both tracing modes respect model search. A discrepant bay may have no matching
   order source; do not fabricate a connection.
-- `Show counts`: matched bays green, discrepancies red, uncounted bays neutral.
+- `Show counts`: matched bays green, discrepancies red, uncounted bays yellow
+  with a dark gold border. There is no separate counted/uncounted focus control.
   Tooltips show system amount, physical amount, and shortage/overage. This toggle
   only changes display; it does not record counts or change inventory.
 
@@ -171,3 +200,16 @@ The demo assigns `createdAt` relative to its fixed `activityAsOf` snapshot.
 Keep count and single-bay tracing mutually exclusive with this mode, respect
 model search, update the recent-order set as live time advances, and retain it
 across reloads.
+
+## Excel count sample
+
+`public/samples/lg-200-model-counts.xlsx` is an upload-ready, first-sheet count
+sample containing 200 distinct LG appliance models across all 1,635 locations. It has
+1,464 matches, 30 discrepancies, one partial bay, and 140 uncounted locations.
+All quantities and assignments are synthetic. Its source worksheet records LG
+product URLs; models include older/discontinued appliances. Regenerate with
+`node scripts/generate-lg-count-sample.mjs`; the source catalog is
+`public/samples/lg-model-sources.json`. The sample uses the supported flat header
+`Count Qty A-B` and a single `Task System Qty` column. P–R locations use suffixes A–E; `Status: Partial` colors that sub-bay and outlines its parent bay yellow. The current upload handler
+updates count colors only; visible labels omit P–R sub-bay letters. Model labels
+and order tracing still use the feed.

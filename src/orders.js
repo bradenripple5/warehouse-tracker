@@ -26,6 +26,17 @@ export function setupOrders(floor) {
   document.querySelector('.floor-tools').prepend(searchBox);
   const search = searchBox.querySelector('input');
   search.value = preferences.modelSearch;
+  search.setAttribute('role', 'combobox');
+  search.setAttribute('aria-autocomplete', 'list');
+  search.setAttribute('aria-controls', 'model-suggestions');
+  search.setAttribute('aria-expanded', 'false');
+  const modelSuggestions = document.createElement('div');
+  modelSuggestions.className = 'model-suggestions';
+  modelSuggestions.id = 'model-suggestions';
+  modelSuggestions.setAttribute('role', 'listbox');
+  modelSuggestions.setAttribute('aria-label', 'Matching models');
+  modelSuggestions.hidden = true;
+  searchBox.append(modelSuggestions);
   const traceBayToggle = document.createElement('button');
   traceBayToggle.type = 'button';
   traceBayToggle.id = 'trace-bay-toggle';
@@ -67,8 +78,73 @@ export function setupOrders(floor) {
   let recentOffMode = preferences.traceMode === 'recent-off';
   let frame = 0, signature = '', inventorySignature = '', countSignature = '', recentSignature = '';
   let orders = [], lines = [], systemBays = {}, countData = {}, orderNow = Date.now();
+  const lgApplianceModels = ['DLEX4000W', 'LRYKC2606S', 'MVEM1825F', 'WM4000HWA'];
+  let activeModel = preferences.modelSearch;
+  let modelOptions = [...lgApplianceModels].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+  let suggestionIndex = -1;
   const orderButtons = new Map();
-  const query = () => search.value.trim().toLowerCase();
+  const query = () => activeModel.trim().toLowerCase();
+  function closeModelSuggestions() {
+    modelSuggestions.hidden = true;
+    search.setAttribute('aria-expanded', 'false');
+    search.removeAttribute('aria-activedescendant');
+    suggestionIndex = -1;
+  }
+  function renderModelSuggestions() {
+    const text = search.value.trim().toLowerCase();
+    const matches = text ? modelOptions.filter(model => model.toLowerCase().includes(text)) : [];
+    modelSuggestions.replaceChildren();
+    suggestionIndex = -1;
+    for (const model of matches) {
+      const option = document.createElement('div');
+      option.className = 'model-suggestion';
+      option.id = `model-suggestion-${modelOptions.indexOf(model)}`;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', 'false');
+      option.textContent = model;
+      option.addEventListener('pointerdown', event => event.preventDefault());
+      option.addEventListener('click', () => chooseModel(model));
+      modelSuggestions.append(option);
+    }
+    modelSuggestions.hidden = matches.length === 0;
+    search.setAttribute('aria-expanded', String(matches.length > 0));
+  }
+  function chooseModel(model) {
+    activeModel = model;
+    search.value = model;
+    page = 1;
+    held = null;
+    closeModelSuggestions();
+    results.open = true;
+    savePreferences({ modelSearch: model, searchPage: page, resultsOpen: true });
+    renderConnections();
+  }
+  function moveSuggestionSelection(direction) {
+    const options = [...modelSuggestions.querySelectorAll('[role="option"]')];
+    if (!options.length) return;
+    suggestionIndex = suggestionIndex < 0
+      ? direction > 0 ? 0 : options.length - 1
+      : (suggestionIndex + direction + options.length) % options.length;
+    options.forEach((option, index) => option.setAttribute('aria-selected', String(index === suggestionIndex)));
+    search.setAttribute('aria-activedescendant', options[suggestionIndex].id);
+    options[suggestionIndex].scrollIntoView({ block: 'nearest' });
+  }
+  search.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' && !modelSuggestions.hidden) {
+      event.preventDefault(); moveSuggestionSelection(1);
+    } else if (event.key === 'ArrowUp' && !modelSuggestions.hidden) {
+      event.preventDefault(); moveSuggestionSelection(-1);
+    } else if (event.key === 'Enter' && !modelSuggestions.hidden) {
+      const options = [...modelSuggestions.querySelectorAll('[role="option"]')];
+      if (options.length) { event.preventDefault(); options[suggestionIndex < 0 ? 0 : suggestionIndex].click(); }
+    } else if (event.key === 'Escape' && !modelSuggestions.hidden) {
+      closeModelSuggestions();
+    }
+  });
+  search.addEventListener('focus', () => { if (search.value.trim()) renderModelSuggestions(); });
+  document.addEventListener('pointerdown', event => {
+    if (!searchBox.contains(event.target)) closeModelSuggestions();
+  });
   function matchingSources(order) {
     const text = query();
     return order.sources.filter(source => !text || source.model?.toLowerCase().includes(text));
@@ -228,7 +304,7 @@ export function setupOrders(floor) {
         path.setAttribute('marker-end', 'url(#order-arrow)');
         const dot = document.createElementNS(ns, 'circle'); dot.setAttribute('r', '3');
         const label = document.createElementNS(ns, 'text');
-        label.textContent = `${source.bay} · ${source.model ? `${source.model}: ` : ''}${amount(source)}`;
+        label.textContent = `${bays.get(source.bay).dataset.baseBay ?? source.bay} · ${source.model ? `${source.model}: ` : ''}${amount(source)}`;
         paths.append(path, dot, label);
         lines.push({ source, button, path, dot, label });
       }
@@ -253,9 +329,15 @@ export function setupOrders(floor) {
     document.querySelector('#tooltip').hidden = true;
     held = order; renderConnections();
   }
-  search.addEventListener('input', () => { page = 1; held = null; savePreferences({ modelSearch: search.value, searchPage: page }); renderConnections(); });
+  search.addEventListener('input', () => {
+    page = 1; held = null; activeModel = '';
+    renderModelSuggestions();
+    savePreferences({ modelSearch: '', searchPage: page });
+    renderConnections();
+  });
   searchBox.querySelector('button').addEventListener('click', () => {
-    search.value = ''; page = 1; held = null; savePreferences({ modelSearch: '', searchPage: page }); renderConnections(); search.focus();
+    search.value = ''; activeModel = ''; page = 1; held = null; closeModelSuggestions();
+    savePreferences({ modelSearch: '', searchPage: page }); renderConnections(); search.focus();
   });
   window.addEventListener('pointercancel', release);
   window.addEventListener('blur', release);
@@ -292,6 +374,12 @@ export function setupOrders(floor) {
     recentSignature = nextRecent;
     if (!ordersChanged) { renderConnections(); return; }
     held = null; orders = incoming; stacks.replaceChildren(); orderButtons.clear();
+    modelOptions = [...new Set([
+      ...lgApplianceModels,
+      ...orders.flatMap(order => order.sources.map(source => source.model).filter(Boolean))
+    ])]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+    if (search.value.trim() && document.activeElement === search) renderModelSuggestions();
     for (let dock = 1; dock <= 48; dock++) {
       const stack = document.createElement('div'); stack.className = 'order-stack';
       stack.dataset.dock = dock;

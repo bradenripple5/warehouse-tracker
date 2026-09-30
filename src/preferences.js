@@ -10,7 +10,7 @@ const defaults = {
   traceMode: 'none',
   tracedBay: null,
 };
-const validBay = value => value === null || (typeof value === 'string' && /^[A-HJ-N](101|141|00[1-9]|01[0-9]|020|021|02[4-9]|030|04[1-9]|05[0-9]|060|061|06[4-9]|070)$/.test(value));
+const validBay = value => value === null || (typeof value === 'string' && /^(?:[A-HJ-N](?:101|141|00[1-9]|01[0-9]|020|021|02[4-9]|030|04[1-9]|05[0-9]|060|061|06[4-9]|070)|A10[2-9]|A11[0-2]|[P-R](?:101|141|00[1-9]|01[0-9]|020|021|02[4-9]|030|04[1-9]|05[0-9]|060|061|06[4-9]|070)[A-E])$/.test(value));
 function normalize(value) {
   const result = { ...defaults };
   if (!value || typeof value !== 'object' || Array.isArray(value)) return result;
