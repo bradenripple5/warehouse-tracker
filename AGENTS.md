@@ -205,11 +205,37 @@ across reloads.
 
 `public/samples/lg-200-model-counts.xlsx` is an upload-ready, first-sheet count
 sample containing 200 distinct LG appliance models across all 1,635 locations. It has
-1,464 matches, 30 discrepancies, one partial bay, and 140 uncounted locations.
+1,464 matches, 30 discrepancies, one partial bay, and 139 uncounted locations.
 All quantities and assignments are synthetic. Its source worksheet records LG
 product URLs; models include older/discontinued appliances. Regenerate with
 `node scripts/generate-lg-count-sample.mjs`; the source catalog is
 `public/samples/lg-model-sources.json`. The sample uses the supported flat header
 `Count Qty A-B` and a single `Task System Qty` column. P–R locations use suffixes A–E; `Status: Partial` colors that sub-bay and outlines its parent bay yellow. The current upload handler
-updates count colors only; visible labels omit P–R sub-bay letters. Model labels
+updates count colors, model totals, and offset arrows; visible labels omit P–R sub-bay letters. Model labels
 and order tracing still use the feed.
+
+## Miscount model totals
+
+`src/miscounts.js` aggregates model/location quantities for the **Miscount models**
+dialog. It lists only models with a location discrepancy, split into totals that
+match system and totals that differ or are incomplete. Totals span all locations
+in the active source, not just discrepant locations. Uploads retain model rows
+and use file system/count quantities; feed mode uses inventory/counts. Duplicate
+model/location rows are summed before checking discrepancies. Missing counts or
+partial rows prevent a balanced classification. The dialog shows totals, signed
+differences, and full location IDs (including P–R suffixes), works in fit view,
+and ignores the map search. File totals cover listed locations only.
+
+
+Miscount arrows (`src/offset-pairs.js`) show possible exact offsets
+for the same model at any two locations, regardless of distance. Purple arrows point from extra to
+short; no inventory or physical counts are corrected automatically. Candidates
+require complete counts at both endpoints and equal, opposite differences after
+summing duplicate rows. All candidates are shown if a bay has multiple possible
+matches. Pair matching has no adjacency or distance restriction. P–R suffix locations remain distinct.
+Arrows stay visible regardless of count visibility or model search and resize with the floor. Bay
+details (even with counts hidden) and the miscount dialog describe the model, quantity, and endpoints.
+Both the live demo and generated workbook include B005 → B006 (vertical, 4 units)
+and D010 → D050 (horizontal, 3 units), plus B008 → M055 (distant, 5 units). Live demo still has 15 discrepant bays;
+the workbook now has 34. Re-upload the regenerated workbook to replace a previous
+session upload.

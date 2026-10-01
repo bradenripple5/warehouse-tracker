@@ -494,12 +494,20 @@
       {
         "model": "PK-120",
         "quantity": 16
+      },
+      {
+        "model": "WM4000HWA",
+        "quantity": 10
       }
     ],
     "B006": [
       {
         "model": "MX-108",
         "quantity": 54
+      },
+      {
+        "model": "WM4000HWA",
+        "quantity": 10
       }
     ],
     "B007": [
@@ -512,6 +520,10 @@
       {
         "model": "CR-320",
         "quantity": 68
+      },
+      {
+        "model": "DEMO-DISTANT-PAIR",
+        "quantity": 10
       }
     ],
     "B009": [
@@ -1427,6 +1439,10 @@
       {
         "model": "WH-240",
         "quantity": 82
+      },
+      {
+        "model": "DLEX4000W",
+        "quantity": 10
       }
     ],
     "D011": [
@@ -1665,6 +1681,10 @@
       {
         "model": "WH-240",
         "quantity": 22
+      },
+      {
+        "model": "DLEX4000W",
+        "quantity": 10
       }
     ],
     "D051": [
@@ -5304,6 +5324,10 @@
       {
         "model": "PK-120",
         "quantity": 16
+      },
+      {
+        "model": "DEMO-DISTANT-PAIR",
+        "quantity": 10
       }
     ],
     "M056": [
@@ -10082,18 +10106,30 @@
       {
         "model": "PK-120",
         "quantity": 16
+      },
+      {
+        "model": "WM4000HWA",
+        "quantity": 14
       }
     ],
     "B006": [
       {
         "model": "MX-108",
         "quantity": 54
+      },
+      {
+        "model": "WM4000HWA",
+        "quantity": 6
       }
     ],
     "B008": [
       {
         "model": "CR-320",
         "quantity": 68
+      },
+      {
+        "model": "DEMO-DISTANT-PAIR",
+        "quantity": 15
       }
     ],
     "B009": [
@@ -10505,7 +10541,7 @@
     "C057": [
       {
         "model": "AX-560",
-        "quantity": 76
+        "quantity": 71
       }
     ],
     "C058": [],
@@ -10578,6 +10614,10 @@
       {
         "model": "WH-240",
         "quantity": 82
+      },
+      {
+        "model": "DLEX4000W",
+        "quantity": 13
       }
     ],
     "D011": [
@@ -10720,6 +10760,10 @@
       {
         "model": "WH-240",
         "quantity": 22
+      },
+      {
+        "model": "DLEX4000W",
+        "quantity": 7
       }
     ],
     "D052": [
@@ -10731,7 +10775,7 @@
     "D053": [
       {
         "model": "CR-320",
-        "quantity": 40
+        "quantity": 43
       }
     ],
     "D055": [
@@ -10969,7 +11013,7 @@
     "E048": [
       {
         "model": "CR-320",
-        "quantity": 90
+        "quantity": 93
       }
     ],
     "E050": [
@@ -11178,7 +11222,7 @@
     "F045": [
       {
         "model": "WH-240",
-        "quantity": 77
+        "quantity": 72
       }
     ],
     "F046": [
@@ -11408,12 +11452,7 @@
         "quantity": 38
       }
     ],
-    "G030": [
-      {
-        "model": "WH-240",
-        "quantity": 4
-      }
-    ],
+    "G030": [],
     "G041": [
       {
         "model": "MX-108",
@@ -11658,7 +11697,7 @@
     "H026": [
       {
         "model": "MX-108",
-        "quantity": 21
+        "quantity": 24
       }
     ],
     "H028": [
@@ -12706,6 +12745,10 @@
       {
         "model": "PK-120",
         "quantity": 16
+      },
+      {
+        "model": "DEMO-DISTANT-PAIR",
+        "quantity": 5
       }
     ],
     "M057": [

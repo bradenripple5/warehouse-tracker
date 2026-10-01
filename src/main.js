@@ -5,6 +5,9 @@ import './style.css';
 // restoring that search to avoid showing duplicate model search controls.
 // import { setupOrders } from './orders.js';
 import { compareCount, validateCounts } from './counts.js';
+import { summarizeMiscounts, inventoryCountRows } from './miscounts.js';
+import { findOffsetPairs, setupOffsetArrows } from './offset-pairs.js';
+let uploadedModelRows = null;
 import { getPreferences, savePreferences } from './preferences.js';
 // TEMPORARILY SUSPENDED: activity heatmap controls and recency rendering.
 // Restore the activity.js import and refresh/render hooks to re-enable it.
@@ -22,10 +25,11 @@ document.querySelector('main').outerHTML = `
 <main>
 <section class="heading"><div><div class="eyebrow">INVENTORY OVERVIEW</div><h1>A place for everything.</h1><p>Your floor, bay by bay. Hover or select a bay to inspect its inventory.</p></div><div class="updated">LAST CHECKED<span id="updated">—</span></div></section>
 <section class="metrics"><div><label>STORAGE BAYS</label><strong>1635 <small>across 16 sections</small></strong></div><div><label>OCCUPIED</label><strong id="occupied">—</strong></div><div><label>TOTAL UNITS</label><strong id="units">—</strong></div><div><label>AVAILABLE BAYS</label><strong id="available">—</strong></div></section>
-<section class="floor-panel"><div class="floor-heading"><div><h2>Warehouse floor</h2><span>TOP VIEW · SECTIONS A–R · NO I/O</span></div><div class="floor-tools"><button type="button" id="fit-toggle" aria-pressed="false" aria-controls="sections">Fit to screen</button><button type="button" id="counts-toggle" aria-pressed="false" aria-controls="sections">Show counts</button><button type="button" id="upload-counts">Upload counts</button><input id="counts-file" type="file" accept=".xlsx,.xls,.csv" hidden><span id="model-search-summary" role="status" hidden></span><div class="legend inventory-legend"><span><i></i>Stocked</span><span><i class="empty-key"></i>Empty</span><span><i class="aisle-key"></i>Forklift access</span></div><div class="legend count-legend" hidden><span><i class="match-key"></i>Count matches</span><span><i class="off-key"></i>Count differs</span><span><i class="upload-not-started-key"></i>Not Started</span><span><i class="upload-no-key"></i>Task Diff No</span><span><i class="upload-absent-key"></i>Not listed</span><span><i class="empty-key"></i>Uncounted</span></div><span id="count-summary" role="status" hidden></span><span id="upload-message" role="status" hidden></span></div></div>
+<section class="floor-panel"><div class="floor-heading"><div><h2>Warehouse floor</h2><span>TOP VIEW · SECTIONS A–R · NO I/O</span></div><div class="floor-tools"><button type="button" id="fit-toggle" aria-pressed="false" aria-controls="sections">Fit to screen</button><button type="button" id="counts-toggle" aria-pressed="false" aria-controls="sections">Show counts</button><button type="button" id="miscount-models" aria-haspopup="dialog">Miscount models</button><button type="button" id="upload-counts">Upload counts</button><input id="counts-file" type="file" accept=".xlsx,.xls,.csv" hidden><span id="model-search-summary" role="status" hidden></span><div class="legend inventory-legend"><span><i></i>Stocked</span><span><i class="empty-key"></i>Empty</span><span><i class="aisle-key"></i>Forklift access</span></div><div class="legend count-legend" hidden><span><i class="match-key"></i>Count matches</span><span><i class="off-key"></i>Count differs</span><span><i class="upload-not-started-key"></i>Not Started</span><span><i class="upload-no-key"></i>Task Diff No</span><span><i class="upload-absent-key"></i>Not listed</span><span><i class="empty-key"></i>Uncounted</span></div><span id="count-summary" role="status" hidden></span><span id="upload-message" role="status" hidden></span></div></div>
 <div class="map-scroll"><div class="floor"><div class="dock-doors" aria-label="Dock doors 1–48; positions 22–27 are blank"></div><div class="dock-aisle" aria-label="Horizontal forklift aisle"><span>←</span><span>DOCK ACCESS · FORKLIFT AISLE</span><span>→</span></div><div class="warehouse-sections" id="sections"></div></div></div>
-<footer><span>Warehouse map · sections A–R, skipping I and O</span><span id="map-hint">Scroll horizontally to explore sections A–R ↔</span></footer></section>
-<aside id="details" aria-live="polite">Select a bay to keep its inventory visible here.</aside></main><div id="tooltip" role="tooltip" hidden></div>`;
+<footer><span>Warehouse map · sections A–R, skipping I and O</span><span id="offset-summary"></span><span id="map-hint">Scroll horizontally to explore sections A–R ↔</span></footer></section>
+<aside id="details" aria-live="polite">Select a bay to keep its inventory visible here.</aside></main><div id="tooltip" role="tooltip" hidden></div>
+<dialog id="miscount-dialog" aria-labelledby="miscount-title"><form method="dialog"><button aria-label="Close miscount models">Close</button></form><h2 id="miscount-title">Models with miscounts</h2><p id="miscount-scope"></p><div id="miscount-lists"></div></dialog>`;
 applyFitView(true);
 savePreferences({ fitView: true, showCounts: true, showActivity: false });
 const dockDoors = document.querySelector('.dock-doors');
@@ -102,6 +106,9 @@ const aisleObserver = new ResizeObserver(([entry]) => {
 });
 aisleObserver.observe(document.querySelector('.vertical-aisle'));
 const buttons = [...document.querySelectorAll('.bay')];
+const updateOffsetArrows = setupOffsetArrows(floor, buttons);
+let offsetPairs = [];
+function activeCountRows() { return uploadedModelRows ?? inventoryCountRows(inventory, counts); }
 // const updateOrders = setupOrders(floor); // Restore with the import above to re-enable orders/tracing.
 const modelSearchInput = document.createElement('input');
 modelSearchInput.type = 'search'; modelSearchInput.id = 'inventory-model-search';
@@ -155,6 +162,7 @@ countsFile.addEventListener('change', async () => {
     }
     const rows = grid.slice(headerRowIndex + 1).filter(row => row.some(value => value !== ''));
     const bayIds = new Set(buttons.map(button => button.dataset.bay));
+    const nextModelRows = [];
     const nextCounts = {}, nextStates = new Map(), bayComparisons = new Map();
     for (const row of rows) {
       const rawLocation = row[locationCol];
@@ -165,11 +173,7 @@ countsFile.addEventListener('change', async () => {
       const comparison = bayComparisons.get(id) ?? { hasCount: false, off: false, partial: false };
       comparison.partial ||= status.includes('partial');
       const rawCount = row[countCol];
-      if (rawCount === '' || rawCount === undefined || rawCount === null) {
-        if (comparison.partial) comparison.hasCount = true;
-        bayComparisons.set(id, comparison);
-        continue;
-      }
+      const missingCount = rawCount === '' || rawCount === undefined || rawCount === null;
       const toQty = value => value === '' || value === undefined || value === null ? 0 : Number(String(value).replaceAll(',', '').trim());
       const countQty = toQty(rawCount);
       const systemValues = flatSystemCol !== undefined ? [row[flatSystemCol]] : systemTeamCols.map(col => row[col]);
@@ -177,6 +181,13 @@ countsFile.addEventListener('change', async () => {
       if (!Number.isSafeInteger(countQty) || countQty < 0 || systemValues.some(value => value !== '' && value !== undefined && value !== null && (!Number.isSafeInteger(toQty(value)) || toQty(value) < 0)) || !Number.isSafeInteger(systemQty)) {
         throw new Error(`Invalid count or Task System Qty for ${id}`);
       }
+      nextModelRows.push({ bay: id, model: String(row[modelCol] ?? '').trim(), system: systemQty, counted: missingCount ? null : countQty, partial: comparison.partial });
+      if (missingCount) {
+        if (comparison.partial) comparison.hasCount = true;
+        bayComparisons.set(id, comparison);
+        continue;
+      }
+      if (!String(row[modelCol] ?? '').trim() && (countQty || systemQty)) throw new Error(`Missing model for ${id}`);
       comparison.hasCount = true; comparison.off ||= countQty !== systemQty;
       bayComparisons.set(id, comparison);
     }
@@ -185,6 +196,7 @@ countsFile.addEventListener('change', async () => {
       nextStates.set(id, !comparison?.hasCount ? 'uncounted' : comparison.partial ? 'partial' : comparison.off ? 'off' : 'match');
       if (comparison?.hasCount) nextCounts[id] = [];
     }
+    uploadedModelRows = nextModelRows;
     uploadedCounts = nextCounts;
     uploadedBayStates = nextStates;
     showCounts = true;
@@ -213,7 +225,53 @@ function applyCountView() {
   document.querySelector('#count-summary').hidden = !showCounts;
 }
 applyCountView();
+const miscountDialog = document.querySelector('#miscount-dialog');
+document.querySelector('#miscount-models').addEventListener('click', () => {
+  renderMiscountModels();
+  miscountDialog.showModal();
+});
+function renderMiscountModels() {
+  const models = summarizeMiscounts(activeCountRows());
+  const offsets = findOffsetPairs(activeCountRows());
+  document.querySelector('#miscount-scope').textContent = `${uploadedModelRows ? 'Uploaded file: totals include all listed locations, using Count Qty A-B and Task System Qty.' : 'Inventory feed: totals include all warehouse locations.'} Only models with a location discrepancy are listed. Missing or partial counts are incomplete; their difference is provisional. This list includes all models regardless of map search.`;
+  const lists = document.querySelector('#miscount-lists');
+  lists.replaceChildren();
+  for (const balanced of [true, false]) {
+    const group = models.filter(model => model.balanced === balanced);
+    const section = document.createElement('section');
+    const title = document.createElement('h3');
+    title.textContent = `${balanced ? 'Totals match system' : 'Totals differ or are incomplete'} (${group.length})`;
+    section.append(title);
+    if (!group.length) {
+      const empty = document.createElement('p'); empty.textContent = 'No models in this group.'; section.append(empty);
+    } else {
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th scope="col">Model / miscount locations</th><th scope="col">System</th><th scope="col">Counted</th><th scope="col">Difference</th></tr></thead>';
+      const body = document.createElement('tbody');
+      for (const item of group) {
+        const row = document.createElement('tr');
+        const delta = item.counted - item.system;
+        const label = document.createElement('th'); label.scope = 'row'; label.textContent = item.model;
+        const bays = document.createElement('small'); bays.textContent = item.offBays.join(', '); label.append(bays); row.append(label);
+        for (const pair of offsets.filter(pair => pair.model === item.model)) {
+          const note = document.createElement('small');
+          note.textContent = `Possible offset: ${pair.from} → ${pair.to} · ${pair.quantity} units (extra → short)`; label.append(note);
+        }
+        for (const value of [item.system.toLocaleString(), `${item.counted.toLocaleString()}${item.incomplete ? ' (incomplete)' : ''}`, `${delta > 0 ? '+' : ''}${delta.toLocaleString()}`]) {
+          const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(body); section.append(table);
+    }
+    lists.append(section);
+  }
+}
 function renderCounts() {
+  offsetPairs = findOffsetPairs(activeCountRows());
+  updateOffsetArrows(offsetPairs);
+  document.querySelector('#offset-summary').textContent = `↗ ${offsetPairs.length} possible offset pairs · purple arrows: extra → short`;
+  if (miscountDialog.open) renderMiscountModels();
   let matched = 0, off = 0, matchingBays = 0;
   const searchText = modelSearch.trim().toLocaleLowerCase();
   for (const button of buttons) {
@@ -266,6 +324,11 @@ function fillDetails(element, id) {
   element.replaceChildren();
   const title = document.createElement('strong'); title.textContent = `Bay ${buttons.find(button => button.dataset.bay === id)?.dataset.baseBay ?? id}`; element.append(title);
   const items = inventory[id] || [];
+  for (const pair of offsetPairs.filter(pair => pair.from === id || pair.to === id)) {
+    const line = document.createElement('span');
+    line.textContent = `Possible offset: ${pair.model} · ${pair.quantity} units · ${pair.from} (extra) → ${pair.to} (short)`;
+    element.append(line);
+  }
   if (showCounts) {
     const uploadedState = uploadedCounts ? uploadedBayStates.get(id) : null;
     const countLines = uploadedCounts

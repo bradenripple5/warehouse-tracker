@@ -38,6 +38,25 @@ for (const [sectionIndex, section] of sections.entries()) {
   }
 }
 
+// Exact offsets: vertical, horizontal, and distant pairs.
+for (const [a, b, quantity] of [['B005', 'B006', 4], ['D010', 'D050', 3], ['B008', 'M055', 5]]) {
+  const first = rows.find(row => row[0] === a), second = rows.find(row => row[0] === b);
+  second[1] = first[1];
+  for (const [row, delta] of [[first, quantity], [second, -quantity]]) {
+    row[2] = 'Completed'; row[3] = 'Yes'; row[4] = 10; row[5] = 10 + delta;
+  }
+}
+// Recompute metadata after applying the illustrative pair assignments.
+matches = differences = uncounted = partials = 0;
+for (const model of placements.keys()) placements.set(model, 0);
+for (const row of rows.slice(1)) {
+  placements.set(row[1], placements.get(row[1]) + 1);
+  if (row[5] === '') uncounted++;
+  else if (row[2] === 'Partial') partials++;
+  else if (row[4] !== row[5]) differences++;
+  else matches++;
+}
+
 const workbook = XLSX.utils.book_new();
 const counts = XLSX.utils.aoa_to_sheet(rows);
 counts['!cols'] = [14, 22, 18, 20, 22, 22].map(wch => ({ wch }));
@@ -55,7 +74,8 @@ const notes = XLSX.utils.aoa_to_sheet([
   ['Comparison', 'Task System Qty is the expected amount; Count Qty A-B is the actual count used by this app.'],
   ['Headers', 'Count Qty A-B is the supported single-row spelling of Count Qty > A-B.'],
   ['Partial completion', 'P028C has Status=Partial to demonstrate yellow progress highlighting.'],
-  ['Scope', 'The current uploader updates count colors only. Inventory model lists and orders still come from the inventory feed.'],
+  ['Scope', 'Uploads provide count colors, miscount totals, and offset arrows. Inventory model labels and orders still use the feed.'],
+  ['Offset pairs', 'B005 to B006: 4 units vertically; D010 to D050: 3 units horizontally; B008 to M055: 5 units across the warehouse. Arrows indicate possible offsets, not confirmed transfers.'],
   ['Not Started', 'Leave Count Qty A-B blank; zero is a recorded count of zero.'],
   ['Models', 'Model identifiers come from LG USA product URLs; this includes older/discontinued models.'],
   ['Source', 'https://www.lg.com/us/sitemap.xml'],
