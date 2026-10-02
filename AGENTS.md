@@ -54,8 +54,8 @@ column takes precedence over team subcolumns. Not Started numeric placeholders
 never count as physical counts in model totals or offset pairing.
 
 Upload layout overrides the demo geometry below: each column has 33 positions,
-with 101 then 001–032 and 141 then 041–072. Crossings at 022–023 and 062–063 stay
-open. All sections support arbitrary letter suffixes; split the parent footprint
+with 101 then 001–032 and 141 then 041–072. Crossings stay open at 022–023 and 062–063 in A–E, and at
+025–026 and 065–066 in F–R. F–R render 022–023 and 062–063 as normal bays. All sections support arbitrary letter suffixes; split the parent footprint
 into vertical strips for only the distinct suffixes listed in the file. No fixed
 A–E padding or absent-suffix gray cells. A missing whole parent is dark gray.
 Tooltips and accessible labels show full suffix IDs; map labels show the parent.
@@ -64,7 +64,7 @@ Unlisted P–R parents render as one gray cell. P–R widths remain standard.
 Out-of-map rows stay in model totals and are listed in an expandable notice,
 but have no map/arrow endpoints. Uploads supply model search and bay details;
 background feed fetching and polling are disabled. Re-upload rebuilds the geometry and arrow endpoint lookup;
-reload restores the demo geometry. Uploads are not persisted. Parser regression
+reload restores the uniform unsplit startup geometry. Uploads are not persisted. Parser regression
 checks: `node --test tests/upload-counts.test.js`.
 
 ## Layout requirements
@@ -91,8 +91,7 @@ checks: `node --test tests/upload-counts.test.js`.
   data locations ending A–E (for example, `P028A`–`P028E`); display only the
   parent label `P028`. Section A has 11 additional A-side bays, A102–A112, for
   1,635 total map locations. Each column occupies 31 grid positions.
-- A vertical forklift aisle separates each column pair. Crossings line up
-  horizontally across all sections.
+- A vertical forklift aisle separates each column pair. Crossings form one straight horizontal lane across all sections.
 - Dock positions run across the top, numbered 1–48. Leave 22–27 blank.
   The user changed the dock header to descend **48 to 1**; preserve that direction.
 - The horizontal aisle below the dock/order area is four times the vertical
@@ -162,7 +161,7 @@ storage bay keys. Quantities are nonnegative safe integers.
 Current limited mode: startup forces fit view and count view on. The toolbar
 contains only fit, a single show/hide counts toggle, and upload controls, plus
 an inventory model search field. Model search adds a blue dot beside matching
-bay labels, excluding P, Q, and R from the dot indicators. Colors and brightness
+bay labels in every section, including P, Q, and R. Colors and brightness
 stay unchanged. Dots remain visible in fitted/mobile views and disappear when
 search is cleared. Search matches bay inventory directly; the match summary
 still includes all sections.
@@ -281,12 +280,55 @@ and ignores the map search. File totals cover listed locations only.
 Miscount arrows (`src/offset-pairs.js`) show possible exact offsets
 for the same model at any two locations, regardless of distance. Purple arrows point from extra to
 short; no inventory or physical counts are corrected automatically. Candidates
-require complete counts at both endpoints and equal, opposite differences after
+require both endpoints to have red (`off`) upload status, complete counts at both
+endpoints, and equal, opposite differences after
 summing duplicate rows. All candidates are shown if a bay has multiple possible
 matches. Pair matching has no adjacency or distance restriction. P–R suffix locations remain distinct.
-Arrows stay visible regardless of count visibility or model search and resize with the floor. Bay
+Arrows start hidden on each page load. **Show balance arrows** toggles them on;
+once enabled they remain independent of count visibility and model search. Arrow
+lines display the exchange quantity at their midpoint. Arrow
+tips target the actual suffix bay centers using SVG screen-coordinate conversion
+and follow resizing, fit changes, and re-uploaded geometry. Bay
 details (even with counts hidden) and the miscount dialog describe the model, quantity, and endpoints.
 Both the live demo and generated workbook include B005 → B006 (vertical, 4 units)
 and D010 → D050 (horizontal, 3 units), plus B008 → M055 (distant, 5 units). Live demo still has 15 discrepant bays;
 the workbook now has 34. Re-upload the regenerated workbook to replace a previous
 session upload.
+
+## Startup bay display
+
+Startup uses the same 33-position layout in all sections, including P, Q, and R,
+without forced A–E subdivisions. Uploaded suffixes remain distinct clickable bays
+in every section; no section is excluded from model search indicators.
+At page load, the bays briefly spell “LG” in red, then fade back to white over 650 ms (2.2 seconds total). Reduced-motion
+preferences skip the fade. This startup display runs only once per page load; uploads
+cancel it immediately, and controls, resizing, or re-uploading never restart it.
+Balance arrows always start off and are controlled by **Show balance arrows**.
+The legacy demo layout and data descriptions above refer to inactive reference assets.
+
+Miscount-model membership respects each uploaded model row's Task Diff flag:
+only Yes qualifies; No, missing flags, and Not Started rows do not. A different
+model making the same bay red does not qualify correctly counted models there.
+Legacy uploads without flags compare summed model/location quantities. Numeric
+model totals still include every current-file location, and duplicate Yes flags
+win within a model/location. Re-upload replaces the source rows and dialog contents.
+
+The active forklift crossings are 022–023 / 062–063 in A–E and
+025–026 / 065–066 from F through R. `src/layout.js` supplies the same crossing
+rule to the renderer and upload parser. Restored F–R 022/023/062/063 bays include
+all uploaded suffixes, search indicators, count colors, and arrow endpoints.
+All other supported storage positions remain mapped; rows referring to permanent
+lane positions or locations outside the floor remain in totals and the outside-map notice.
+
+Main columns use shared upper/crossing/lower height bands so the forklift lane
+runs straight through A–R despite different crossing numbers. Bays distribute
+within each band without renumbering or omitting locations; the rule applies in
+both detailed and fitted views. `.bay-zone` holds each band's bay cells.
+
+The LG mosaic starts in section F so both letters use the same bay heights after
+lane alignment. **Re-upload last file** reloads the latest successful upload
+without a picker, and is disabled before the first upload. Where the browser
+supports `showOpenFilePicker`, retain its handle for fresh disk reads. Other
+browsers reload the uploaded copy (button tooltip explains that disk edits need
+**Upload counts**). This source is session-only; failed uploads retain it, and
+re-upload does not replay the startup logo.

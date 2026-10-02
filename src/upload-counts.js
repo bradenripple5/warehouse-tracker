@@ -1,4 +1,5 @@
 // Parse the warehouse export independently of its current map geometry.
+import { isForkliftCrossing } from './layout.js';
 const norm = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 const blank = value => value === '' || value === undefined || value === null;
 const quantity = value => blank(value) ? 0 : Number(String(value).replaceAll(',', '').trim());
@@ -8,8 +9,7 @@ export function isMappedLocation(id) {
   if (!match) return false;
   const n = Number(match[2]);
   return (match[1] === 'A' && n >= 101 && n <= 112) || n === 101 || n === 141 ||
-    (n >= 1 && n <= 32 && n !== 22 && n !== 23) ||
-    (n >= 41 && n <= 72 && n !== 62 && n !== 63);
+    (((n >= 1 && n <= 32) || (n >= 41 && n <= 72)) && !isForkliftCrossing(match[1], n));
 }
 
 export function parseCountUpload(grid) {
@@ -49,7 +49,8 @@ export function parseCountUpload(grid) {
     }
     const model = String(row[modelCol] ?? '').trim();
     if (!model && (system || counted)) throw new Error(`Missing model for ${id}`);
-    modelRows.push({ bay: id, model, system, counted, partial });
+    modelRows.push({ bay: id, model, system, counted, partial,
+      discrepancy: diffCol === undefined ? undefined : !notStarted && diff === 'yes' });
     const entry = locations.get(id) ?? { notStarted: false, partial: false, yes: false, no: false, unknown: false, models: new Map() };
     entry.notStarted ||= notStarted;
     entry.partial ||= partial;

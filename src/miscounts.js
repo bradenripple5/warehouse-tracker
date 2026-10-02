@@ -1,20 +1,25 @@
 // Aggregate duplicate rows within each location before identifying miscounts.
 export function summarizeMiscounts(rows) {
   const models = new Map();
-  for (const { bay, model, system, counted, partial = false } of rows) {
+  for (const { bay, model, system, counted, partial = false, discrepancy } of rows) {
     if (!model) continue;
     if (!models.has(model)) models.set(model, new Map());
     const locations = models.get(model);
-    const entry = locations.get(bay) ?? { system: 0, counted: 0, incomplete: false, hasCount: false };
+    const entry = locations.get(bay) ?? { system: 0, counted: 0, incomplete: false, hasCount: false, flagged: false, discrepancy: false };
     entry.system += system;
     entry.counted += counted ?? 0;
     entry.hasCount ||= counted !== null;
     entry.incomplete ||= counted === null || partial;
+    entry.flagged ||= discrepancy !== undefined;
+    entry.discrepancy ||= discrepancy === true;
     locations.set(bay, entry);
   }
   const result = [];
   for (const [model, locations] of models) {
-    const offBays = [...locations].filter(([, entry]) => entry.hasCount && entry.system !== entry.counted).map(([bay]) => bay);
+    // Flags determine membership; quantities still determine whole-model totals.
+    const offBays = [...locations].filter(([, entry]) => entry.flagged
+      ? entry.discrepancy
+      : entry.hasCount && entry.system !== entry.counted).map(([bay]) => bay);
     if (!offBays.length) continue;
     const entries = [...locations.values()];
     const system = entries.reduce((sum, entry) => sum + entry.system, 0);

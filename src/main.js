@@ -12,6 +12,7 @@ import { getPreferences, savePreferences } from './preferences.js';
 // Restore the activity.js import and refresh/render hooks to re-enable it.
 import * as XLSX from 'xlsx';
 import { parseCountUpload } from './upload-counts.js';
+import { crossingStart } from './layout.js';
 let uploadedFlagged = false;
 
 const sections = [...'ABCDEFGHJKLMNPQR'];
@@ -19,6 +20,7 @@ const bayId = (letter, n) => `${letter}${String(n).padStart(3, '0')}`;
 const preferences = getPreferences();
 let uploadedCounts = null, uploadedBayStates = new Map(), selected = preferences.selectedBay;
 let showCounts = true;
+let showOffsets = false;
 let modelSearch = preferences.modelSearch;
 let tooltipBay = null;
 document.querySelector('main').outerHTML = `
@@ -26,7 +28,7 @@ document.querySelector('main').outerHTML = `
 <main>
 <section class="heading"><div><div class="eyebrow">INVENTORY OVERVIEW</div><h1>A place for everything.</h1><p>Your floor, bay by bay. Hover or select a bay to inspect its inventory.</p></div><div class="updated">LAST UPLOAD<span id="updated">—</span></div></section>
 <section class="metrics"><div><label>STORAGE BAYS</label><strong>1635 <small>across 16 sections</small></strong></div><div><label>OCCUPIED</label><strong id="occupied">—</strong></div><div><label>TOTAL UNITS</label><strong id="units">—</strong></div><div><label>AVAILABLE BAYS</label><strong id="available">—</strong></div></section>
-<section class="floor-panel"><div class="floor-heading"><div><h2>Warehouse floor</h2><span>TOP VIEW · SECTIONS A–R · NO I/O</span></div><div class="floor-tools"><button type="button" id="fit-toggle" aria-pressed="false" aria-controls="sections">Fit to screen</button><button type="button" id="counts-toggle" aria-pressed="false" aria-controls="sections">Show counts</button><button type="button" id="miscount-models" aria-haspopup="dialog">Miscount models</button><button type="button" id="upload-counts">Upload counts</button><input id="counts-file" type="file" accept=".xlsx,.xls,.csv" hidden><details id="map-legend"><summary>Legend &amp; upload details</summary><div class="map-legend-content"><span id="model-search-summary" role="status" hidden></span><div class="legend inventory-legend"><span><i></i>Stocked</span><span><i class="empty-key"></i>Empty</span><span><i class="aisle-key"></i>Forklift access</span></div><div class="legend count-legend" hidden><span><i class="match-key"></i>Count matches</span><span><i class="off-key"></i>Count differs</span><span><i class="upload-not-started-key"></i>Not Started</span><span><i class="upload-absent-key"></i>Not listed</span><span><i class="empty-key"></i>Uncounted</span></div><span id="count-summary" role="status" hidden></span><span id="upload-message" role="status" hidden></span></div></details></div></div>
+<section class="floor-panel"><div class="floor-heading"><div><h2>Warehouse floor</h2><span>TOP VIEW · SECTIONS A–R · NO I/O</span></div><div class="floor-tools"><button type="button" id="fit-toggle" aria-pressed="false" aria-controls="sections">Fit to screen</button><button type="button" id="counts-toggle" aria-pressed="false" aria-controls="sections">Show counts</button><button type="button" id="offset-toggle" aria-pressed="false">Show balance arrows</button><button type="button" id="miscount-models" aria-haspopup="dialog">Miscount models</button><button type="button" id="upload-counts">Upload counts</button><button type="button" id="reupload-counts" disabled>Re-upload last file</button><input id="counts-file" type="file" accept=".xlsx,.xls,.csv" hidden><details id="map-legend"><summary>Legend &amp; upload details</summary><div class="map-legend-content"><span id="model-search-summary" role="status" hidden></span><div class="legend inventory-legend"><span><i></i>Stocked</span><span><i class="empty-key"></i>Empty</span><span><i class="aisle-key"></i>Forklift access</span></div><div class="legend count-legend" hidden><span><i class="match-key"></i>Count matches</span><span><i class="off-key"></i>Count differs</span><span><i class="upload-not-started-key"></i>Not Started</span><span><i class="upload-absent-key"></i>Not listed</span><span><i class="empty-key"></i>Uncounted</span></div><span id="count-summary" role="status" hidden></span><span id="upload-message" role="status" hidden></span></div></details></div></div>
 <div class="map-scroll"><div class="floor"><div class="dock-doors" aria-label="Dock doors 1–48; positions 22–27 are blank"></div><div class="dock-aisle" aria-label="Horizontal forklift aisle"><span>←</span><span>DOCK ACCESS · FORKLIFT AISLE</span><span>→</span></div><div class="warehouse-sections" id="sections"></div></div></div>
 <footer><span>Warehouse map · sections A–R, skipping I and O</span><span id="offset-summary"></span><span id="map-hint">Scroll horizontally to explore sections A–R ↔</span></footer></section>
 <aside id="details" aria-live="polite">Select a bay to keep its inventory visible here.</aside></main><div id="tooltip" role="tooltip" hidden></div>
@@ -71,23 +73,28 @@ function createCompositeBay(row, letter, n, suffixes = [...'ABCDE']) {
   row.append(group);
 }
 function createColumn(row, letter, first, last, subdivisions = null) {
+  // Shared upper/lane/lower bands keep the aisle straight even where the
+  // number of bays before and after the crossing differs by section.
+  row.classList.add('main-bay-column');
+  const upper = document.createElement('div'); upper.className = 'bay-zone';
+  const lower = document.createElement('div'); lower.className = 'bay-zone';
+  const gap = document.createElement('div'); gap.className = 'crossing';
+  gap.innerHTML = '<span>↔</span>';
+  gap.setAttribute('aria-label', 'Forklift crossing');
+  row.append(upper, gap, lower);
+  let target = upper;
   for (let position = -1; position <= last - first; position++) {
     const n = position === -1 ? first + 100 : first + position;
-    if (n === 22 || n === 62) {
-      const gap = document.createElement('div');
-      gap.className = 'crossing'; gap.style.gridRow = 'span 2';
-      gap.innerHTML = '<span>↔</span>';
-      gap.setAttribute('aria-label', 'Forklift crossing');
-      row.append(gap); position += 1; continue;
+    if (n === crossingStart(letter, first)) {
+      target = lower; position += 1; continue;
     }
     if (letter === 'A' && first === 1 && n === 101) {
-      const space = document.createElement('div'); space.className = 'bay-space'; space.setAttribute('aria-hidden', 'true'); row.append(space);
+      const space = document.createElement('div'); space.className = 'bay-space'; space.setAttribute('aria-hidden', 'true'); target.append(space);
     } else if (subdivisions) {
       const suffixes = [...(subdivisions.get(bayId(letter, n)) ?? [''])].sort();
-      if (suffixes[0]) createCompositeBay(row, letter, n, suffixes);
-      else createBay(row, letter, n);
-    } else if ('PQR'.includes(letter)) createCompositeBay(row, letter, n);
-    else createBay(row, letter, n);
+      if (suffixes[0]) createCompositeBay(target, letter, n, suffixes);
+      else createBay(target, letter, n);
+    } else createBay(target, letter, n);
   }
 }
 function renderMap(subdivisions = null) {
@@ -98,7 +105,7 @@ function renderMap(subdivisions = null) {
     const section = document.createElement('section');
     section.className = 'storage-section';
     section.setAttribute('aria-label', `Section ${letter}`);
-    const specialLayout = `${letter === 'A' ? ' with-a-side' : ''}${'PQR'.includes(letter) ? ' with-sub-bays' : ''}`;
+    const specialLayout = letter === 'A' ? ' with-a-side' : '';
     section.innerHTML = `<h3>SECTION <b>${letter}</b></h3><div class="section-layout${specialLayout}">${letter === 'A' ? '<div class="bay-column a-side-column" aria-label="A-side bays 101–112"></div>' : ''}<div class="bay-column left-column"></div><div class="vertical-aisle" aria-label="Forklift aisle for section ${letter}"><span>↕</span><span>FORKLIFT AISLE</span><span>↕</span></div><div class="bay-column right-column"></div></div>`;
     document.querySelector('#sections').append(section);
     if (letter === 'A') for (let number = 101; number <= 112; number++) {
@@ -110,7 +117,7 @@ function renderMap(subdivisions = null) {
     createColumn(section.querySelector('.right-column'), letter, 41, subdivisions ? 72 : 70, subdivisions);
   }
 }
-renderMap();
+renderMap(new Map());
 // Keep the dock access aisle exactly four times the vertical aisle width,
 // including when fit view changes the column widths or the window is resized.
 const floor = document.querySelector('.floor');
@@ -142,15 +149,50 @@ modelSearchInput.addEventListener('input', () => {
   savePreferences({ modelSearch });
   renderCounts();
 });
+const offsetToggle = document.querySelector('#offset-toggle');
+offsetToggle.addEventListener('click', () => {
+  showOffsets = !showOffsets;
+  offsetToggle.setAttribute('aria-pressed', String(showOffsets));
+  offsetToggle.textContent = showOffsets ? 'Hide balance arrows' : 'Show balance arrows';
+  renderCounts();
+});
 const countsToggle = document.querySelector('#counts-toggle');
 const countsFile = document.querySelector('#counts-file');
-document.querySelector('#upload-counts').addEventListener('click', () => countsFile.click());
+const uploadButton = document.querySelector('#upload-counts');
+const reuploadButton = document.querySelector('#reupload-counts');
+let lastUpload = null;
+function uploadError(error) {
+  mapLegend.open = true;
+  const message = document.querySelector('#upload-message');
+  message.hidden = false; message.textContent = `Upload failed: ${error.message}`;
+}
+uploadButton.addEventListener('click', async () => {
+  if (!window.showOpenFilePicker) { countsFile.click(); return; }
+  try {
+    const [handle] = await window.showOpenFilePicker({ multiple: false, types: [{
+      description: 'Warehouse counts', accept: { 'application/octet-stream': ['.xlsx', '.xls', '.csv'] },
+    }] });
+    await uploadFile(await handle.getFile(), handle);
+  } catch (error) { if (error.name !== 'AbortError') uploadError(error); }
+});
+reuploadButton.addEventListener('click', async () => {
+  if (!lastUpload) return;
+  try {
+    const file = lastUpload.handle ? await lastUpload.handle.getFile() : lastUpload.file;
+    await uploadFile(file, lastUpload.handle);
+  } catch (error) { uploadError(error); }
+});
 countsFile.addEventListener('change', async () => {
   const file = countsFile.files?.[0];
-  if (!file) return;
+  if (file) await uploadFile(file);
+  countsFile.value = '';
+});
+async function uploadFile(file, handle = null) {
+  uploadButton.disabled = true; reuploadButton.disabled = true;
   const message = document.querySelector('#upload-message');
   try {
-    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const bytes = await file.arrayBuffer();
+    const workbook = XLSX.read(bytes, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
     const parsed = parseCountUpload(grid);
@@ -158,6 +200,7 @@ countsFile.addEventListener('change', async () => {
     uploadedCounts = Object.fromEntries([...parsed.states].filter(([, state]) => ['match', 'off', 'partial'].includes(state)).map(([id]) => [id, []]));
     uploadedBayStates = parsed.states;
     uploadedFlagged = parsed.flagged;
+    stopStartupLogo();
     hideTooltip();
     aisleObserver.disconnect();
     renderMap(parsed.subdivisions);
@@ -183,11 +226,16 @@ countsFile.addEventListener('change', async () => {
     const summary = document.createElement('summary'); summary.textContent = 'Locations outside the floor map';
     const list = document.createElement('span'); list.textContent = parsed.outside.join(', ');
     outsideDetails.append(summary, list);
+    // Keep only the latest successful source for this page session. A handle
+    // reads fresh disk contents; fallback browsers retain the uploaded copy.
+    lastUpload = { handle, file: new File([bytes], file.name, { type: file.type }) };
+    reuploadButton.title = handle ? `Read ${file.name} again from disk` : `Reload the uploaded copy of ${file.name}; use Upload counts for disk edits`;
   } catch (error) {
-    mapLegend.open = true;
-    message.hidden = false; message.textContent = `Upload failed: ${error.message}`;
-  } finally { countsFile.value = ''; }
-});
+    uploadError(error);
+  } finally {
+    uploadButton.disabled = false; reuploadButton.disabled = !lastUpload;
+  }
+}
 // TEMPORARILY SUSPENDED: activity heatmap toggle and controls. Re-enable the
 // activity.js import, toolbar markup, and refresh/render hooks to restore it.
 countsToggle.addEventListener('click', () => {
@@ -214,8 +262,8 @@ document.querySelector('#miscount-models').addEventListener('click', () => {
 });
 function renderMiscountModels() {
   const models = summarizeMiscounts(activeCountRows());
-  const offsets = findOffsetPairs(activeCountRows());
-  document.querySelector('#miscount-scope').textContent = `${uploadedModelRows ? 'Uploaded file: totals include all listed locations, using Count Qty A-B and Task System Qty.' : 'No data loaded. Upload a count file to see model totals.'} Only models with a location discrepancy are listed. Missing or partial counts are incomplete; their difference is provisional. This list includes all models regardless of map search.`;
+  const offsets = findOffsetPairs(activeCountRows(), uploadedBayStates);
+  document.querySelector('#miscount-scope').textContent = `${uploadedModelRows ? 'Uploaded file: totals include all listed locations, using Count Qty A-B and Task System Qty.' : 'No data loaded. Upload a count file to see model totals.'} Only models with a Task Diff Yes row are listed when the file supplies flags; otherwise summed model/location quantities identify discrepancies. Missing or partial counts are incomplete; their difference is provisional. This list includes all models regardless of map search.`;
   const lists = document.querySelector('#miscount-lists');
   lists.replaceChildren();
   for (const balanced of [true, false]) {
@@ -281,11 +329,11 @@ function renderInventory() {
   fitText();
 }
 function renderCounts() {
-  offsetPairs = findOffsetPairs(activeCountRows());
-  updateOffsetArrows(offsetPairs);
+  offsetPairs = findOffsetPairs(activeCountRows(), uploadedBayStates);
+  updateOffsetArrows(showOffsets ? offsetPairs : []);
   const visibleIds = new Set(buttons.map(button => button.dataset.bay));
   const visiblePairs = offsetPairs.filter(pair => visibleIds.has(pair.from) && visibleIds.has(pair.to));
-  document.querySelector('#offset-summary').textContent = uploadedCounts ? `↗ ${visiblePairs.length} possible offset pairs on map · purple arrows: extra → short` : '';
+  document.querySelector('#offset-summary').textContent = uploadedCounts ? `↗ ${visiblePairs.length} possible offset pairs on map · ${showOffsets ? 'purple arrows: extra → short' : 'arrows hidden'}` : '';
   if (miscountDialog.open) renderMiscountModels();
   let matched = 0, off = 0, matchingBays = 0;
   const searchText = modelSearch.trim().toLocaleLowerCase();
@@ -393,3 +441,38 @@ function fitText() {
 // Startup is upload-only: never fetch or poll the bundled demo inventory.
 renderCounts();
 renderSelection();
+
+// One brief bay mosaic per page load, never restarted by uploads or controls.
+let startupLogoTimer, startupFadeTimer;
+function stopStartupLogo() {
+  clearTimeout(startupLogoTimer);
+  clearTimeout(startupFadeTimer);
+  document.body.classList.remove('startup-logo', 'startup-logo-fading');
+  document.querySelectorAll('.startup-pixel').forEach(bay => bay.classList.remove('startup-pixel'));
+}
+function showStartupLogo() {
+  const pixels = [
+    '11000000111110',
+    '11000001100011',
+    '11000001100000',
+    '11000001101111',
+    '11000001100011',
+    '11000001100011',
+    '11111100111110',
+  ];
+  // Keep both letters within F–R, where bay heights match after aisle alignment.
+  // Center the 14-column lettering in the 32-column warehouse.
+  for (const bay of buttons) {
+    const id = bay.dataset.baseBay;
+    const n = Number(id.slice(1));
+    if (n >= 100 || bay.closest('.a-side-column')) continue;
+    const column = sections.indexOf(id[0]) * 2 + (n >= 41 ? 1 : 0);
+    const row = n >= 41 ? n - 40 : n;
+    const x = column - 10, y = Math.floor((row - 5) / 2);
+    if (pixels[y]?.[x] === '1') bay.classList.add('startup-pixel');
+  }
+  document.body.classList.add('startup-logo');
+  startupFadeTimer = setTimeout(() => document.body.classList.add('startup-logo-fading'), 1550);
+  startupLogoTimer = setTimeout(stopStartupLogo, 2200);
+}
+showStartupLogo();
