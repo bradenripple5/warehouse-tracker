@@ -15,6 +15,11 @@ integration yet. `public/inventory.json` is explicitly labeled demo data.
 - `npm run dev` starts Vite on port 5174 with live updates.
 - `npm run build` writes the production build to `dist/`.
 - `npm run preview` serves the build on port 4173.
+- `.github/workflows/deploy.yml` builds and publishes `dist/` on pushes to `main`;
+  GitHub Pages must use the GitHub Actions source. Never publish the source root
+  `index.html` directly. Relative Vite asset paths support the project site URL.
+- `npm run deploy` is the alternative manual `gh-pages` branch deployment;
+  that method requires Pages to serve the `gh-pages` branch root.
 - `.gitignore` excludes dependencies, builds, logs, and local environment files.
 
 ## Layout requirements

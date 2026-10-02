@@ -21,6 +21,24 @@ npm run preview
 
 The production build is written to `dist/`. The preview command serves that build locally.
 
+### GitHub Pages
+
+In the repository's **Settings → Pages → Build and deployment**, set **Source**
+to **GitHub Actions**. Commit and push `.github/workflows/deploy.yml` to `main`.
+The workflow installs dependencies, builds the app, and publishes the complete
+`dist/` directory on each push to `main`. It can also be run manually from the
+Actions tab. The project site is https://bradenripple5.github.io/warehouse-tracker/.
+
+The root `index.html` is Vite's development entry and references `/src/main.js`.
+Publishing it directly (or copying only the built HTML) causes missing JavaScript
+errors. The deployed site needs the built `index.html`, `assets/`, and the copied
+public files, including `inventory.json`. The existing relative `base: './'`
+keeps asset and inventory URLs under the project site path.
+
+The existing `npm run deploy` command is an alternative manual deployment: it
+builds and pushes `dist/` to the `gh-pages` branch. For that method, set Pages to
+**Deploy from a branch → gh-pages → / (root)** instead of GitHub Actions.
+
 Git ignores installed dependencies (`node_modules/`), build output, logs, and local
 environment files. Commit `package-lock.json` to keep dependency installs reproducible.
 
