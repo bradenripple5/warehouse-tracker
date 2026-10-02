@@ -22,6 +22,51 @@ integration yet. `public/inventory.json` is explicitly labeled demo data.
   that method requires Pages to serve the `gh-pages` branch root.
 - `.gitignore` excludes dependencies, builds, logs, and local environment files.
 
+## Before an upload
+
+Bay interiors are white before a count file is uploaded, in both count and
+inventory views. Labels and thin outlines remain visible. The `no-upload` body
+class is removed when an upload succeeds so normal upload colors apply. This is
+an upload-only startup: no demo/remote inventory is fetched or polled. No model
+data, count colors, or offset arrows appear until an upload succeeds. The bundled
+demo and feed contract below are retained only as inactive reference assets.
+
+## Legend disclosure
+
+The legend, model-match summary, count totals, upload message, and outside-map
+location list are inside the native “Legend & upload details” disclosure. It
+starts collapsed and persists `legendExpanded` in browser preferences. Controls
+and model search stay visible. Upload errors expand it. Expanded details scroll
+within a capped height, and the legend remains accessible on small screens.
+Not Started cells are white with a single thin dark edge; fitted bays use a
+half-pixel inset edge to preserve interior space, including subdivided cells.
+
+## Uploaded warehouse export (current behavior)
+
+`src/upload-counts.js` parses the first worksheet, including the two header rows
+in `public/samples/what the data should look like.xlsx`. Status Not Started means
+uncounted with a dark outline and overrides Task Diff No. Processing/Confirmed
+rows use Task Diff Y/N: Yes red, No green, regardless of numeric disagreement.
+Any Yes at a location wins; otherwise Not Started wins over No. Missing flags
+are unknown, not silently inferred from quantities. Legacy files without a diff
+column compare summed model/location quantities. The standalone Task System Qty
+column takes precedence over team subcolumns. Not Started numeric placeholders
+never count as physical counts in model totals or offset pairing.
+
+Upload layout overrides the demo geometry below: each column has 33 positions,
+with 101 then 001–032 and 141 then 041–072. Crossings at 022–023 and 062–063 stay
+open. All sections support arbitrary letter suffixes; split the parent footprint
+into vertical strips for only the distinct suffixes listed in the file. No fixed
+A–E padding or absent-suffix gray cells. A missing whole parent is dark gray.
+Tooltips and accessible labels show full suffix IDs; map labels show the parent.
+Unlisted P–R parents render as one gray cell. P–R widths remain standard.
+
+Out-of-map rows stay in model totals and are listed in an expandable notice,
+but have no map/arrow endpoints. Uploads supply model search and bay details;
+background feed fetching and polling are disabled. Re-upload rebuilds the geometry and arrow endpoint lookup;
+reload restores the demo geometry. Uploads are not persisted. Parser regression
+checks: `node --test tests/upload-counts.test.js`.
+
 ## Layout requirements
 
 - P, Q, and R use the same section width as B–N in detailed and fitted views.
@@ -69,7 +114,9 @@ integration yet. `public/inventory.json` is explicitly labeled demo data.
 
 ## Data contracts
 
-The app polls every five seconds after the preceding request completes. The
+Background feed loading is disabled in the current upload-only UI. The following
+feed contract documents the preserved data assets and former integration.
+Previously the app polled every five seconds after the preceding request completed. The
 default endpoint is `inventory.json` under the Vite base path. Override it with
 `VITE_INVENTORY_URL` in `.env.local` and restart Vite. Do not put secrets in Vite
 environment variables; they are browser-visible. Remote endpoints need suitable
@@ -171,7 +218,7 @@ Check existing processes before starting another dev server. Browser automation
 has used Playwright available from `/home/brady/node_modules` and Chrome at
 `/usr/bin/google-chrome-stable`; neither is a declared project dependency. The
 sandbox may require escalation to launch Chrome or listen on network ports.
-There is no committed automated test suite. Use checks proportional to changes.
+Upload parser regression tests live in `tests/upload-counts.test.js`. Use checks proportional to changes.
 
 Known alignment issue to inspect before changing dock layout: `main.js` renders
 doors from 48 to 1, while `orders.js` currently creates stacks from 1 to 48.
@@ -216,8 +263,7 @@ product URLs; models include older/discontinued appliances. Regenerate with
 `node scripts/generate-lg-count-sample.mjs`; the source catalog is
 `public/samples/lg-model-sources.json`. The sample uses the supported flat header
 `Count Qty A-B` and a single `Task System Qty` column. P–R locations use suffixes A–E; `Status: Partial` colors that sub-bay and outlines its parent bay yellow. The current upload handler
-updates count colors, model totals, and offset arrows; visible labels omit P–R sub-bay letters. Model labels
-and order tracing still use the feed.
+updates count colors, model totals, and offset arrows; visible labels omit P–R sub-bay letters. Uploaded model labels and search use file rows; preserved order tracing still uses the feed.
 
 ## Miscount model totals
 

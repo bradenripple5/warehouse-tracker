@@ -1,3 +1,4 @@
+import { isMappedLocation } from './upload-counts.js';
 const storageKey = 'warehouse-map.preferences.v1';
 const defaults = {
   fitView: true,
@@ -7,14 +8,15 @@ const defaults = {
   modelSearch: '',
   searchPage: 1,
   resultsOpen: false,
+  legendExpanded: false,
   traceMode: 'none',
   tracedBay: null,
 };
-const validBay = value => value === null || (typeof value === 'string' && /^(?:[A-HJ-N](?:101|141|00[1-9]|01[0-9]|020|021|02[4-9]|030|04[1-9]|05[0-9]|060|061|06[4-9]|070)|A10[2-9]|A11[0-2]|[P-R](?:101|141|00[1-9]|01[0-9]|020|021|02[4-9]|030|04[1-9]|05[0-9]|060|061|06[4-9]|070)[A-E])$/.test(value));
+const validBay = value => value === null || (typeof value === 'string' && isMappedLocation(value));
 function normalize(value) {
   const result = { ...defaults };
   if (!value || typeof value !== 'object' || Array.isArray(value)) return result;
-  for (const key of ['fitView', 'showCounts', 'showActivity', 'resultsOpen']) {
+  for (const key of ['fitView', 'showCounts', 'showActivity', 'resultsOpen', 'legendExpanded']) {
     if (typeof value[key] === 'boolean') result[key] = value[key];
   }
   for (const key of ['selectedBay', 'tracedBay']) {

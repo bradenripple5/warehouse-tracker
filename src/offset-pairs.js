@@ -38,13 +38,14 @@ export function setupOffsetArrows(floor, buttons) {
   svg.setAttribute('aria-hidden', 'true');
   svg.innerHTML = '<defs><marker id="offset-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#7c3aed"/></marker></defs><g></g>';
   floor.append(svg);
-  const byId = new Map(buttons.map(button => [button.dataset.bay, button]));
   let pairs = [], frame;
   function draw() {
+    const byId = new Map(buttons.map(button => [button.dataset.bay, button]));
     const bounds = floor.getBoundingClientRect();
     svg.setAttribute('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
     const group = svg.querySelector('g'); group.replaceChildren();
     for (const pair of pairs) {
+      if (!byId.has(pair.from) || !byId.has(pair.to)) continue;
       const a = byId.get(pair.from).getBoundingClientRect();
       const b = byId.get(pair.to).getBoundingClientRect();
       const path = document.createElementNS(ns, 'path');

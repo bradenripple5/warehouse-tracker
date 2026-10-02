@@ -57,8 +57,9 @@ inventory locations. Scroll horizontally to explore the whole floor.
 Hover or focus a bay to read its full contents; click or tap it to keep the
 contents visible below the map. Crowded bays show a hover hint.
 
-`public/inventory.json` contains clearly labeled demo inventory. The app polls
-it every five seconds, so changes to that file appear without manually reloading.
+`public/inventory.json` contains clearly labeled demo inventory retained as a
+reference. The current UI is upload-only and does not fetch or poll this file.
+The feed contract below describes the preserved demo format.
 Each bay maps to an array of objects with a `model` string and a nonnegative
 integer `quantity`. An empty array means an empty bay. Include all 1,635 storage location keys. Standard bay IDs use a section letter
 and three digits; P–R sub-bays add a final letter A–E. Example entries:
@@ -73,7 +74,7 @@ and three digits; P–R sub-bays add a final letter A–E. Example entries:
 }
 ```
 
-To connect a real source, set `VITE_INVENTORY_URL` in `.env.local` to a JSON
+If background feed loading is restored, its former configuration used `VITE_INVENTORY_URL` in `.env.local` to a JSON
 endpoint with the same structure and set `demo` to false in its response.
 Restart Vite after changing environment configuration. A remote endpoint must
 allow browser requests from the app's origin. Do not put secrets in Vite
@@ -181,14 +182,40 @@ comparison. Differences are checked per model, so an overage cannot cancel a
 shortage of a different model. Count updates refresh with inventory. Demo counts
 are sample data; supply actual physical counts through your inventory source.
 
+Before uploading a count file, bay interiors are white with labels and thin
+outlines. Startup does not fetch or poll background inventory; there are no
+model values or offset arrows until you upload. Uploading applies the file’s status colors.
+
+**Legend & upload details** expands or collapses the color key, search summary,
+count totals, and upload information. It starts collapsed and remembers your
+choice. Upload errors open it automatically. Not Started bays have white interiors
+and thin dark outlines, including in the fitted view.
+
 Use **Upload counts** to load an Excel workbook (`.xlsx` or `.xls`) or CSV file.
-The worksheet needs `Location`, `Count Qty` → `A-B`, and `Task System Qty`
-columns. When system quantity is split into `A Team` and `B Team` subcolumns,
-the importer adds them together. A counted bay is green when its A-B quantity
-matches the system quantity, red when any row differs, and yellow when the
-`Status` field says `Partial`. Bays without an A-B count remain uncounted. In P–R,
-base locations are split into lettered A–E sub-bays. The upload replaces feed counts for the current session
-and is not saved after reloading.
+The first worksheet supports the warehouse export's two header rows: `Status`,
+`Location`, `Model`, `Count Qty` → `A - B`, `Task System Qty`, and `Task Diff Y/N`.
+The single Task System Qty column takes precedence over the team subcolumns.
+
+- **Not Started**: uncounted, with a visible dark outline, even if Task Diff says No.
+- **Processing / Yes**: red. **Processing / No**: green. Confirmed rows use the same Yes/No rules.
+- Task Diff controls the color even when the numeric quantities suggest something else.
+- Missing expected bays: dark gray. The uploaded floor includes 101 then 001–032
+  and 141 then 041–072, preserving the 022–023 and 062–063 crossing gaps.
+- Lettered locations in any section split the parent footprint into vertical
+  strips, one per distinct listed suffix. Missing suffixes are not invented or
+  grayed out. Parent labels omit suffixes; tooltips show full location IDs.
+- Any Yes row makes its location red. Otherwise Not Started takes precedence
+  over No; partial or unknown rows remain incomplete.
+
+Locations outside these map ranges (including crossing locations, HDONLY, and
+OFFICECAGE) stay in model totals and appear in an expandable upload notice. They
+have no map cells or arrow endpoints. Uploaded models supply map search and bay
+information. Uploads last for the current session; refreshing restores the feed.
+
+The older flat `Count Qty A-B` sample format still works. Without a Task Diff
+column, quantities are compared after summing duplicate model/location rows.
+Miscount totals and possible offset arrows always use numeric quantities;
+Not Started rows contribute no physical count, even if a placeholder number is present.
 
 An upload-ready sample is available at
 [`public/samples/lg-200-model-counts.xlsx`](public/samples/lg-200-model-counts.xlsx)
@@ -197,7 +224,7 @@ appliance models across 1,635 locations: 1,461 matching, 34 discrepant, one
 partial bay, and 139 uncounted. It includes P–R sub-bays A–E.
 Quantities and assignments are synthetic. The workbook includes official LG
 product links, including older models, and instructions. Uploading changes count
-colors; inventory model labels and orders continue to come from the JSON feed.
+colors and map model information; preserved order data still comes from the JSON feed.
 Regenerate it with `node scripts/generate-lg-count-sample.mjs` using the checked-in
 `public/samples/lg-model-sources.json` model list.
 
